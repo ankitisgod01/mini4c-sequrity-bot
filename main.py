@@ -1,27 +1,47 @@
-import os
+ import os
 import random
 import discord
 from discord.ext import commands
 from discord.ui import Select, View, Button
+from flask import Flask
+from threading import Thread
 
+# ==================== KEEP-ALIVE (RENDER 24/7 UPTIME) ====================
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Pudding Bot is online and running 24/7! 🐾"
+
+def run_flask():
+    app.run(host='0.0.0.0', port=8080)
+
+def keep_alive():
+    t = Thread(target=run_flask)
+    t.start()
+
+# ==================== BOT SETUP ====================
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="$", intents=intents, help_command=None)
 
 # ==================== CONFIGURATION ====================
 OWNER_IDS = [123456789012345678]  # Replace with your Discord User ID
-FOOTER_TEXT = "Developer: ADX ANKIT | MINI4C X SEQURITY ⚡"
+FOOTER_TEXT = "Developer: ADX ANKIT | Pudding 🐾"
 SUPPORT_SERVER_LINK = "https://discord.gg/Yttbf69xx"
 QR_IMAGE_URL = "HTTPS_LINK_TO_YOUR_QR_IMAGE"  # Replace with your QR Code Image URL
 
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user} (ID: {bot.user.id})")
+    print("Pudding Bot is active across servers! 🐾")
     
+    # Cute aur emoji-packed aesthetic status
     activity = discord.Activity(
-        type=discord.ActivityType.watching, 
-        name="$help | Tera Baap Bhi Nahi Kar Payega Nuke ⚡💀🔥"
+        type=discord.ActivityType.streaming, 
+        name="🍮 Baking cute servers | !help 🐾",
+        url="https://twitch.tv/discord"
     )
-    await bot.change_presence(status=discord.Status.dnd, activity=activity)
+    await bot.change_presence(status=discord.Status.online, activity=activity)
 
 # ==================== HELP MENU SYSTEM ====================
 
@@ -46,7 +66,7 @@ class HelpDropdown(Select):
 
     async def callback(self, interaction: discord.Interaction):
         val = self.values[0]
-        embed = discord.Embed(color=discord.Color.from_rgb(47, 49, 54))
+        embed = discord.Embed(color=discord.Color.from_rgb(255, 209, 220)) # Soft pastel pink/cream vibe
         embed.set_thumbnail(url=interaction.client.user.display_avatar.url)
         embed.set_footer(text=f"Requested by {interaction.user.name} • {FOOTER_TEXT}", icon_url=interaction.user.display_avatar.url)
 
@@ -120,13 +140,13 @@ class HelpView(View):
 @bot.command(name="help")
 async def help_cmd(ctx):
     embed = discord.Embed(
-        title="Hello, I'm MINI4C X SEQURITY",
+        title="Hello, I'm Pudding 🐾",
         description=(
             f"• **Prefix for this server:** `$`\n"
             f"• **Set prefix with:** `$prefix <new>`\n"
             f"• **Need help?** [Join Support Server]({SUPPORT_SERVER_LINK})"
         ),
-        color=discord.Color.from_rgb(47, 49, 54)
+        color=discord.Color.from_rgb(255, 209, 220)
     )
     embed.set_thumbnail(url=bot.user.display_avatar.url)
     
@@ -157,7 +177,7 @@ async def pay(ctx, amount: str = None, *, reason: str = "General Payment"):
     embed = discord.Embed(
         title="💳 Payment Invoice",
         description=f"Payment request generated for {ctx.author.mention}",
-        color=discord.Color.from_rgb(47, 49, 54)
+        color=discord.Color.from_rgb(255, 209, 220)
     )
     
     embed.add_field(name="💰 Amount", value=f"**₹{amount}**", inline=True)
@@ -182,5 +202,15 @@ async def cute(ctx, member: discord.Member = None):
     member = member or ctx.author
     await ctx.send(f"✨ {member.mention} is **{random.randint(0, 100)}%** Cute!")
 
-bot.run(os.getenv('TOKEN'))
-      
+# ==================== MAIN EXECUTION ====================
+if __name__ == "__main__":
+    # Start Keep-Alive Server in background
+    keep_alive()
+    
+    # Run Bot
+    TOKEN = os.getenv('TOKEN')
+    if not TOKEN:
+        TOKEN = "YOUR_DISCORD_BOT_TOKEN_HERE"
+        
+    bot.run(TOKEN)
+    
