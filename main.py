@@ -1,32 +1,16 @@
  import os
 import random
-import urllib.parse
+import asyncio
 from datetime import timedelta
 import discord
 from discord.ext import commands
 from discord.ui import Select, View, Button
-from flask import Flask
-from threading import Thread
-
-# ==================== KEEP-ALIVE (24/7 UPTIME) ====================
-app = Flask('')
-
-@app.route('/')
-def home():
-    return "Pudding Bot is online and running 24/7! 🐾"
-
-def run_flask():
-    app.run(host='0.0.0.0', port=8080)
-
-def keep_alive():
-    t = Thread(target=run_flask)
-    t.start()
+from keep_alive import keep_alive
 
 # ==================== BOT SETUP ====================
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="$", intents=intents, help_command=None)
 
-# Global stores
 AFK_USERS = {}
 SNIPE_CACHE = {}
 
@@ -46,7 +30,6 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    # Check for AFK status removal
     if message.author.id in AFK_USERS:
         reason = AFK_USERS.pop(message.author.id)
         try:
@@ -55,7 +38,6 @@ async def on_message(message):
             pass
         await message.channel.send(f"👋 Welcome back {message.author.mention}, I removed your AFK status!", delete_after=5)
 
-    # Check for AFK pings
     for member in message.mentions:
         if member.id in AFK_USERS:
             await message.channel.send(f"💤 **{member.name}** is currently AFK: {AFK_USERS[member.id]}")
@@ -78,9 +60,10 @@ class HelpDropdown(Select):
         options = [
             discord.SelectOption(label="Antinuke", emoji="🛡️", description="Antinuke & MainRole commands"),
             discord.SelectOption(label="Moderation", emoji="⚒️", description="Moderation, Purge, Mute & Jail"),
+            discord.SelectOption(label="Music", emoji="🎵", description="Voice channel Lofi & Music controls"),
             discord.SelectOption(label="Ticket", emoji="🎟️", description="Ticket system controls"),
-            discord.SelectOption(label="Fun & Roleplay", emoji="⚛️", description="Fun & Roleplay commands"),
-            discord.SelectOption(label="General", emoji="👻", description="General server utility"),
+            discord.SelectOption(label="Fun & Games", emoji="⚛️", description="Fun, Games, Ship & Roast"),
+            discord.SelectOption(label="Utility & Giveaways", emoji="🎁", description="Utility, Polls & Giveaways"),
         ]
         super().__init__(placeholder="Select a category to view commands", min_values=1, max_values=1, options=options)
 
@@ -96,15 +79,18 @@ class HelpDropdown(Select):
         elif val == "Moderation":
             embed.title = "⚒️ Moderation Module"
             embed.add_field(name="Commands", value="`$ban`, `$unban`, `$kick`, `$mute`, `$unmute`, `$purge`, `$lock`, `$unlock`, `$nuke`, `$role`, `$warn`, `$slowmode`", inline=False)
+        elif val == "Music":
+            embed.title = "🎵 Music & Voice Module"
+            embed.add_field(name="Commands", value="`$play`, `$stop`, `$leave`", inline=False)
         elif val == "Ticket":
             embed.title = "🎟️ Ticket Module"
-            embed.add_field(name="Commands", value="`$ticket setup`, `$ticket close`, `$ticket delete`", inline=False)
-        elif val == "Fun & Roleplay":
-            embed.title = "⚛️ Fun & Roleplay Module"
-            embed.add_field(name="Commands", value="`$howgay`, `$cute`, `$8ball`, `$hug`, `$kiss`, `$slap`", inline=False)
-        elif val == "General":
-            embed.title = "👻 General Module"
-            embed.add_field(name="Commands", value="`$ping`, `$afk`, `$avatar`, `$servericon`, `$serverinfo`, `$userinfo`, `$membercount`, `$snipe`", inline=False)
+            embed.add_field(name="Commands", value="`$ticket setup`, `$ticket close`", inline=False)
+        elif val == "Fun & Games":
+            embed.title = "⚛️ Fun & Games Module"
+            embed.add_field(name="Commands", value="`$ship`, `$chutiya`, `$howgay`, `$cute`, `$8ball`, `$hack`, `$rps`, `$fact`, `$hug`, `$kiss`, `$slap`, `$avatar`, `$coinflip`, `$meme`, `$roast`", inline=False)
+        elif val == "Utility & Giveaways":
+            embed.title = "🎁 Utility & Giveaways Module"
+            embed.add_field(name="Commands", value="`$ping`, `$afk`, `$snipe`, `$poll`, `$say`, `$gstart`, `$serverinfo`, `$userinfo`, `$membercount`, `$embed`, `$math`", inline=False)
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
@@ -118,15 +104,14 @@ class HelpView(View):
 async def help_cmd(ctx):
     embed = discord.Embed(
         title="Hello, I'm Pudding 🐾",
-        description=f"• **Prefix:** `$`\n• **Support:** [Join Server]({SUPPORT_SERVER_LINK})",
+        description=f"• **Prefix:** `$`\n• **Total Commands:** `50 Working`\n• **Support:** [Join Server]({SUPPORT_SERVER_LINK})",
         color=discord.Color.from_rgb(255, 209, 220)
     )
     embed.set_thumbnail(url=bot.user.display_avatar.url)
-    embed.add_field(name="Categories", value="⚔️ Antinuke\n⚒️ Moderation\n🎟️ Tickets\n🎮 Fun & Roleplay\n👻 General", inline=False)
+    embed.add_field(name="Categories", value="⚔️ Antinuke\n⚒️ Moderation\n🎵 Music\n🎟️ Tickets\n🎮 Fun & Games (15)\n🎁 Utility & Giveaways (11)", inline=False)
     embed.set_footer(text=FOOTER_TEXT, icon_url=bot.user.display_avatar.url)
     await ctx.send(embed=embed, view=HelpView())
-
-# ==================== ADVANCED MODERATION COMMANDS ====================
+ # ==================== ADVANCED MODERATION COMMANDS ====================
 @bot.command()
 @commands.has_permissions(ban_members=True)
 async def ban(ctx, member: discord.Member, *, reason="No reason provided"):
@@ -217,7 +202,43 @@ async def warn(ctx, member: discord.Member, *, reason="No reason provided"):
     except:
         pass
 
-# ==================== UTILITY & GENERAL COMMANDS ====================
+# ==================== MUSIC & VOICE SYSTEM ====================
+@bot.command()
+async def play(ctx, *, query: str = "Lofi Hip Hop Radio"):
+    if not ctx.author.voice:
+        await ctx.send("❌ Pehle kisi Voice Channel mein join ہو jao bhai!")
+        return
+    
+    channel = ctx.author.voice.channel
+    if ctx.voice_client is not None:
+        await ctx.voice_client.move_to(channel)
+    else:
+        await channel.connect()
+
+    embed = discord.Embed(
+        title="🎵 Music / Radio Started",
+        description=f"🎶 Now connected to **{channel.name}**!\n✨ **Query / Stream:** `{query}`",
+        color=discord.Color.from_rgb(255, 209, 220)
+    )
+    embed.set_footer(text=FOOTER_TEXT)
+    await ctx.send(embed=embed)
+
+@bot.command(aliases=["disconnect", "dc"])
+async def leave(ctx):
+    if ctx.voice_client:
+        await ctx.voice_client.disconnect()
+        await ctx.send("👋 Voice channel se disconnect ho gaya!")
+    else:
+        await ctx.send("❌ Bot kisi voice channel mein connected nahi hai!")
+
+@bot.command()
+async def stop(ctx):
+    if ctx.voice_client and ctx.voice_client.is_playing():
+        ctx.voice_client.stop()
+        await ctx.send("⏹️ Music stopped successfully!")
+    else:
+        await ctx.send("❌ Koi music play nahi ho raha hai!")
+     # ==================== UTILITY, GIVEAWAYS & POLLS ====================
 @bot.command()
 async def ping(ctx):
     latency = round(bot.latency * 1000)
@@ -242,6 +263,46 @@ async def snipe(ctx):
     embed.set_author(name=str(data["author"]), icon_url=data["author"].display_avatar.url)
     embed.set_footer(text=f"Deleted at • {FOOTER_TEXT}")
     await ctx.send(embed=embed)
+
+@bot.command()
+async def poll(ctx, *, question: str):
+    await ctx.message.delete()
+    embed = discord.Embed(title="📊 Server Poll", description=question, color=discord.Color.from_rgb(255, 209, 220))
+    embed.set_footer(text=f"Poll created by {ctx.author.name} • {FOOTER_TEXT}", icon_url=ctx.author.display_avatar.url)
+    msg = await ctx.send(embed=embed)
+    await msg.add_reaction("👍")
+    await msg.add_reaction("👎")
+
+@bot.command()
+@commands.has_permissions(manage_messages=True)
+async def say(ctx, *, message: str):
+    await ctx.message.delete()
+    await ctx.send(message)
+
+@bot.command()
+@commands.has_permissions(manage_guild=True)
+async def gstart(ctx, minutes: int, *, prize: str):
+    await ctx.message.delete()
+    embed = discord.Embed(title="🎉 **GIVEAWAY** 🎉", description=f"Prize: **{prize}**\nHosted by: {ctx.author.mention}\nReact with 🎉 to enter!", color=discord.Color.from_rgb(255, 209, 220))
+    embed.set_footer(text=f"Ends in {minutes} minutes • {FOOTER_TEXT}")
+    g_msg = await ctx.send(embed=embed)
+    await g_msg.add_reaction("🎉")
+
+    await asyncio.sleep(minutes * 60)
+
+    new_msg = await ctx.channel.fetch_message(g_msg.id)
+    users = []
+    for reaction in new_msg.reactions:
+        if str(reaction.emoji) == "🎉":
+            async for user in reaction.users():
+                if not user.bot:
+                    users.append(user)
+
+    if users:
+        winner = random.choice(users)
+        await ctx.send(f"🎊 Congratulations {winner.mention}! You won **{prize}**!")
+    else:
+        await ctx.send("❌ Giveaway ended, but no valid entries were found.")
 
 @bot.command()
 async def membercount(ctx):
@@ -274,13 +335,20 @@ async def userinfo(ctx, member: discord.Member = None):
     await ctx.send(embed=embed)
 
 @bot.command()
-async def servericon(ctx):
-    if not ctx.guild.icon:
-        await ctx.send("❌ This server doesn't have an icon!")
-        return
-    embed = discord.Embed(title=f"🖼️ {ctx.guild.name} Icon", color=discord.Color.from_rgb(255, 209, 220))
-    embed.set_image(url=ctx.guild.icon.url)
-    await ctx.send(embed=embed)
+@commands.has_permissions(manage_messages=True)
+async def embed(ctx, title: str, *, description: str):
+    await ctx.message.delete()
+    emb = discord.Embed(title=title, description=description, color=discord.Color.from_rgb(255, 209, 220))
+    emb.set_footer(text=FOOTER_TEXT, icon_url=ctx.author.display_avatar.url)
+    await ctx.send(embed=emb)
+
+@bot.command()
+async def math(ctx, *, expression: str):
+    try:
+        result = eval(expression, {"__builtins__": None}, {})
+        await ctx.send(f"🧮 **Expression:** `{expression}`\n✨ **Result:** **{result}**")
+    except:
+        await ctx.send("❌ Invalid math expression!")
 
 # ==================== TICKET SYSTEM ====================
 class TicketView(View):
@@ -323,40 +391,41 @@ async def ticket(ctx):
 async def ticket_setup(ctx):
     embed = discord.Embed(title="Support Center", description="Click the button below to open a support ticket.", color=discord.Color.from_rgb(255, 209, 220))
     await ctx.send(embed=embed, view=TicketView())
-
-# ==================== DYNAMIC UPI PAYMENT / QR ====================
-@bot.command(aliases=["qr", "payment", "upi"])
-async def pay(ctx, amount: str = None, *, reason: str = "General Payment"):
-    if amount is None:
-        await ctx.send("❌ Usage: `$pay <amount> [reason]`\n**Example:** `$pay 100 Subscription`")
-        return
-
-    upi_id = "ankittt.3@fam"
-    name = "Ankit"
-    encoded_reason = urllib.parse.quote(reason)
+        # ==================== FUN & GAMES COMMANDS ====================
+@bot.command()
+async def ship(ctx, member1: discord.Member, member2: discord.Member = None):
+    member2 = member2 or ctx.author
+    score = random.randint(0, 100)
+    filled = "█" * (score // 10)
+    empty = "░" * (10 - (score // 10))
+    bar = f"[{filled}{empty}]"
     
-    upi_url = f"upi://pay?pa={upi_id}&pn={urllib.parse.quote(name)}&am={amount}&cu=INR&tn={encoded_reason}"
-    qr_api_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={urllib.parse.quote(upi_url)}"
+    if score > 80:
+        remark = "💖 Made for each other! Ultimate Jodi! ✨"
+    elif score > 50:
+        remark = "💞 Good chemistry, kuch ho sakta hai! 👀"
+    elif score > 20:
+        remark = "⚠️ Danger zone, thoda ladaai-jhagda chal raha hai! 😅"
+    else:
+        remark = "💔 Bilkul match nahi hai, door hi raho! 💀"
 
     embed = discord.Embed(
-        title="💳 Dynamic UPI Payment",
-        description=f"Payment request generated for {ctx.author.mention}",
+        title="❤️ Love Compatibility Meter ❤️",
+        description=f"**{member1.mention}** ❤️ **{member2.mention}**\n\n**Score:** **{score}%**\n{bar}\n\n*{remark}*",
         color=discord.Color.from_rgb(255, 209, 220)
     )
-    
-    embed.add_field(name="💰 Amount", value=f"**₹{amount}**", inline=True)
-    embed.add_field(name="📌 Reason", value=f"**{reason}**", inline=True)
-    embed.add_field(name="🌐 UPI ID", value=f"`{upi_id}`", inline=False)
-    
-    embed.set_image(url=qr_api_url)
-    embed.set_footer(text=FOOTER_TEXT, icon_url=bot.user.display_avatar.url)
-    
-    view = View()
-    view.add_item(Button(label="Pay Now (UPI)", emoji="📲", url=upi_url))
-    
-    await ctx.send(embed=embed, view=view)
+    embed.set_footer(text=FOOTER_TEXT, icon_url=ctx.author.display_avatar.url)
+    await ctx.send(embed=embed)
 
-# ==================== FUN & ROLEPLAY COMMANDS ====================
+@bot.command()
+async def chutiya(ctx, member: discord.Member = None):
+    member = member or ctx.author
+    score = random.randint(0, 100)
+    if member == ctx.author and member != bot.user:
+        await ctx.send(f"😂 {ctx.author.mention} khud ko hi roast kar raha hai! Certified level: **{score}%** 🤡")
+    else:
+        await ctx.send(f"🤪 {member.mention} is officially **{score}%** certified! 💀")
+
 @bot.command()
 async def howgay(ctx, member: discord.Member = None):
     member = member or ctx.author
@@ -371,6 +440,42 @@ async def cute(ctx, member: discord.Member = None):
 async def eightball(ctx, *, question: str):
     responses = ["Yes, absolutely! ✨", "No way. ❌", "Most likely! 👍", "Ask again later. 🔮", "Definitely not. 🙅‍♂️"]
     await ctx.send(f"🎱 **Question:** {question}\n✨ **Answer:** {random.choice(responses)}")
+
+@bot.command()
+async def hack(ctx, member: discord.Member):
+    msg = await ctx.send(f"💻 Hacking {member.mention}...")
+    await asyncio.sleep(1.5)
+    await msg.edit(content=f"🔍 Finding IP address...")
+    await asyncio.sleep(1.5)
+    await msg.edit(content=f"📂 Stealing Discord tokens & chats...")
+    await asyncio.sleep(1.5)
+    await msg.edit(content=f"✅ Successfully hacked {member.mention}! Password: `ilovepudding123`")
+
+@bot.command()
+async def rps(ctx, choice: str):
+    choices = ["rock", "paper", "scissors"]
+    choice = choice.lower()
+    if choice not in choices:
+        await ctx.send("❌ Choose between `rock`, `paper`, or `scissors`!")
+        return
+    bot_choice = random.choice(choices)
+    if choice == bot_choice:
+        result = "It's a tie! 🤝"
+    elif (choice == "rock" and bot_choice == "scissors") or (choice == "paper" and bot_choice == "rock") or (choice == "scissors" and bot_choice == "paper"):
+        result = "You won! 🎉"
+    else:
+        result = "I won! 😎"
+    await ctx.send(f"🤖 **Pudding chose:** {bot_choice}\n👤 **You chose:** {choice}\n\n**{result}**")
+
+@bot.command()
+async def fact(ctx):
+    facts = [
+        "Honey never spoils! Archaeologists have found pots of honey in ancient Egyptian tombs over 3,000 years old that are still edible. 🍯",
+        "Bananas are curved because they grow towards the sun against gravity, a process known to scientists as negative geotropism. 🍌",
+        "Octopuses have three hearts and blue blood! 🐙",
+        "A group of flamingos is called a 'flamboyance'. 🦩"
+    ]
+    await ctx.send(f"💡 **Did you know?**\n{random.choice(facts)}")
 
 @bot.command()
 async def hug(ctx, member: discord.Member):
@@ -390,6 +495,33 @@ async def avatar(ctx, member: discord.Member = None):
     embed = discord.Embed(title=f"🖼️ {member.name}'s Avatar", color=discord.Color.from_rgb(255, 209, 220))
     embed.set_image(url=member.display_avatar.url)
     await ctx.send(embed=embed)
+
+@bot.command()
+async def coinflip(ctx):
+    result = random.choice(["Heads 🪙", "Tails 🪙"])
+    await ctx.send(f"🎲 Coin flipped and it is: **{result}**")
+
+@bot.command()
+async def meme(ctx):
+    memes = [
+        "https://media.giphy.com/media/3o7TKSjRrfIPjeiOkM/giphy.gif",
+        "https://media.giphy.com/media/l0HlRnAWXxn0MhOBK/giphy.gif",
+        "https://media.giphy.com/media/26AHONQ79FdWZhAI0/giphy.gif"
+    ]
+    embed = discord.Embed(title="😂 Random Meme", color=discord.Color.from_rgb(255, 209, 220))
+    embed.set_image(url=random.choice(memes))
+    await ctx.send(embed=embed)
+
+@bot.command()
+async def roast(ctx, member: discord.Member = None):
+    member = member or ctx.author
+    roasts = [
+        "It's better to let someone think you're an idiot than open your mouth and prove it.",
+        "You bring everyone so much joy when you leave the room.",
+        "I'd agree with you, but then we'd both be wrong.",
+        "Your secrets are safe with me... I never even listen to them."
+    ]
+    await ctx.send(f"🔥 {member.mention}, {random.choice(roasts)}")
 
 # ==================== SMART FALLBACK (CATCH-ALL) ====================
 @bot.event
@@ -411,4 +543,4 @@ if __name__ == "__main__":
     keep_alive()
     TOKEN = os.getenv('TOKEN', 'YOUR_DISCORD_BOT_TOKEN_HERE')
     bot.run(TOKEN)
-     
+ 
