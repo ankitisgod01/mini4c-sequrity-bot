@@ -1,389 +1,217 @@
- import discord
-from discord.ext import commands
+ import os
 import random
-import time
+import discord
+from discord.ext import commands
+from discord.ui import Select, View, Button
+from flask import Flask
+from threading import Thread
 
-intents = discord.Intents.default()
-intents.members = True
-intents.message_content = True
-intents.guilds = True
+# ==================== KEEP-ALIVE (24/7 UPTIME) ====================
+app = Flask('')
 
-bot = commands.Bot(command_prefix="$", intents=intents)
+@app.route('/')
+def home():
+    return "Pudding Bot is online and running 24/7! 🐾"
 
-config = {
-    "autorole_humans": [], "autorole_bots": [],
-    "automod_enabled": False, "antibot_enabled": False,
-    "antinuke_enabled": False, "balances": {}, "warns": {}, "levels": {}
-}
-start_time = time.time()
+def run_flask():
+    app.run(host='0.0.0.0', port=8080)
+
+def keep_alive():
+    t = Thread(target=run_flask)
+    t.start()
+
+# ==================== BOT SETUP ====================
+intents = discord.Intents.all()
+bot = commands.Bot(command_prefix="$", intents=intents, help_command=None)
+
+# ==================== CONFIGURATION ====================
+FOOTER_TEXT = "Developer: ADX ANKIT | Pudding 🐾"
+SUPPORT_SERVER_LINK = "https://discord.gg/Yttbf69xx"
+QR_IMAGE_URL = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe"
 
 @bot.event
 async def on_ready():
-    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="over Pudding's server 🐾 | $help"))
-    print(f"Logged in as {bot.user.name} | 150+ Commands Loaded Successfully!")
+    print(f"Logged in as {bot.user} (ID: {bot.user.id})")
+    print("Pudding Bot is active across servers! 🐾")
+    activity = discord.Activity(type=discord.ActivityType.streaming, name="🍮 Baking cute servers | $help 🐾", url="https://twitch.tv/discord")
+    await bot.change_presence(status=discord.Status.online, activity=activity)
 
-# ==================== HELP COMMAND ====================
+# ==================== HELP MENU SYSTEM ====================
+class HelpDropdown(Select):
+    def __init__(self):
+        options = [
+            discord.SelectOption(label="Antinuke", emoji="🛡️", description="Antinuke & MainRole commands"),
+            discord.SelectOption(label="Moderation", emoji="⚒️", description="Moderation, Purge & Jail"),
+            discord.SelectOption(label="Ticket", emoji="🎟️", description="Ticket system controls"),
+            discord.SelectOption(label="Fun & Roleplay", emoji="⚛️", description="Fun & Roleplay commands"),
+            discord.SelectOption(label="General", emoji="👻", description="General server utility"),
+        ]
+        super().__init__(placeholder="Select a category to view commands", min_values=1, max_values=1, options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        val = self.values[0]
+        embed = discord.Embed(color=discord.Color.from_rgb(255, 209, 220))
+        embed.set_thumbnail(url=interaction.client.user.display_avatar.url)
+        embed.set_footer(text=f"Requested by {interaction.user.name} • {FOOTER_TEXT}", icon_url=interaction.user.display_avatar.url)
+
+        if val == "Antinuke":
+            embed.title = "🛡️ Antinuke Module"
+            embed.add_field(name="Commands", value="`$antinuke`, `$whitelist`, `$unwhitelist`, `$whitelisted`, `$antinukelimit`", inline=False)
+        elif val == "Moderation":
+            embed.title = "⚒️ Moderation Module"
+            embed.add_field(name="Commands", value="`$ban`, `$unban`, `$kick`, `$mute`, `$unmute`, `$purge`, `$lock`, `$unlock`", inline=False)
+        elif val == "Ticket":
+            embed.title = "🎟️ Ticket Module"
+            embed.add_field(name="Commands", value="`$ticket setup`, `$ticket panel`, `$ticket close`, `$ticket delete`", inline=False)
+        elif val == "Fun & Roleplay":
+            embed.title = "⚛️ Fun Module"
+            embed.add_field(name="Commands", value="`$howgay`, `$cute`, `$translate`, `$horny`, `$hug`, `$kiss`, `$slap`", inline=False)
+        elif val == "General":
+            embed.title = "👻 General Module"
+            embed.add_field(name="Commands", value="`$afk`, `$avatar`, `$banner`, `$servericon`, `$membercount`", inline=False)
+
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+class HelpView(View):
+    def __init__(self):
+        super().__init__()
+        self.add_item(HelpDropdown())
+        self.add_item(Button(label="Support Server", emoji="🔗", url=SUPPORT_SERVER_LINK))
+
 @bot.command(name="help")
-async def custom_help(ctx):
+async def help_cmd(ctx):
     embed = discord.Embed(
-        title="🍮 Pudding🐾 Help Panel",
-        description="Here are the main categories for all 150+ commands available on this server:",
-        color=discord.Color.from_rgb(255, 182, 193)
+        title="Hello, I'm Pudding 🐾",
+        description=f"• **Prefix:** `$`\n• **Support:** [Join Server]({SUPPORT_SERVER_LINK})",
+        color=discord.Color.from_rgb(255, 209, 220)
     )
-    embed.add_field(name="⚙️ Autorole", value="`$autorole`", inline=True)
-    embed.add_field(name="🤖 AutoMod", value="`$automod`", inline=True)
-    embed.add_field(name="🛡️ Security", value="`$security` / `$antinuke`", inline=True)
-    embed.add_field(name="💰 Economy & Pay", value="`$balance` / `$pay`", inline=True)
-    embed.add_field(name="🔨 Moderation", value="`$kick`, `$ban`, `$purge`", inline=True)
-    embed.add_field(name="🛠️ Utility & Info", value="`$ping`, `$serverinfo`", inline=True)
-    embed.add_field(name="🎮 Fun & Games", value="`$coinflip`, `$roll`, `$hug`", inline=True)
-    embed.add_field(name="🎫 Ticket System", value="`$ticket`, `$close`", inline=True)
-    embed.add_field(name="🌟 Giveaways & Ranks", value="`$rank`, `$gstart`", inline=True)
-    embed.set_footer(text="Pudding🐾 is here to help keep things sweet and secure!")
+    embed.set_thumbnail(url=bot.user.display_avatar.url)
+    embed.add_field(name="Categories", value="⚔️ Antinuke\n⚒️ Moderation\n🎟️ Tickets\n🎮 Fun & Roleplay\n👻 General", inline=False)
+    embed.set_footer(text=FOOTER_TEXT, icon_url=bot.user.display_avatar.url)
+    await ctx.send(embed=embed, view=HelpView())
+
+# ==================== MODERATION COMMANDS ====================
+@bot.command()
+@commands.has_permissions(ban_members=True)
+async def ban(ctx, member: discord.Member, *, reason="No reason provided"):
+    await member.ban(reason=reason)
+    await ctx.send(f"🔨 Successfully banned {member.mention} | Reason: {reason}")
+
+@bot.command()
+@commands.has_permissions(kick_members=True)
+async def kick(ctx, member: discord.Member, *, reason="No reason provided"):
+    await member.kick(reason=reason)
+    await ctx.send(f"👢 Successfully kicked {member.mention} | Reason: {reason}")
+
+@bot.command()
+@commands.has_permissions(manage_messages=True)
+async def purge(ctx, limit: int = 5):
+    await ctx.channel.purge(limit=limit + 1)
+    msg = await ctx.send(f"🧹 Cleared {limit} messages successfully!")
+    await msg.delete(delay=3)
+
+@bot.command()
+@commands.has_permissions(manage_channels=True)
+async def lock(ctx):
+    await ctx.channel.set_permissions(ctx.guild.default_role, send_messages=False)
+    await ctx.send("🔒 Channel locked successfully!")
+
+@bot.command()
+@commands.has_permissions(manage_channels=True)
+async def unlock(ctx):
+    await ctx.channel.set_permissions(ctx.guild.default_role, send_messages=True)
+    await ctx.send("🔓 Channel unlocked successfully!")
+
+# ==================== TICKET SYSTEM ====================
+class TicketView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="Create Ticket", emoji="🎟️", style=discord.ButtonStyle.green, custom_id="create_ticket")
+    async def create_ticket(self, interaction: discord.Interaction, button: Button):
+        guild = interaction.guild
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(read_messages=False),
+            interaction.user: discord.PermissionOverwrite(read_messages=True, send_messages=True),
+            guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
+        }
+        category = discord.utils.get(guild.categories, name="Tickets")
+        if not category:
+            category = await guild.create_category("Tickets")
+        
+        channel = await guild.create_text_channel(f"ticket-{interaction.user.name}", category=category, overwrites=overwrites)
+        
+        embed = discord.Embed(title="Support Ticket", description="Staff will be with you shortly. Click close to delete.", color=discord.Color.green())
+        await channel.send(f"{interaction.user.mention}", embed=embed, view=TicketCloseView())
+        await interaction.response.send_message(f"✅ Ticket created: {channel.mention}", ephemeral=True)
+
+class TicketCloseView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="Close Ticket", emoji="🔒", style=discord.ButtonStyle.red, custom_id="close_ticket")
+    async def close_ticket(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.send_message("🔒 Closing ticket in 3 seconds...")
+        await interaction.channel.delete(delay=3)
+
+@bot.group(invoke_without_command=True)
+async def ticket(ctx):
+    await ctx.send("Usage: `$ticket setup`")
+
+@ticket.command(name="setup")
+@commands.has_permissions(administrator=True)
+async def ticket_setup(ctx):
+    embed = discord.Embed(title="Support Center", description="Click the button below to open a support ticket.", color=discord.Color.from_rgb(255, 209, 220))
+    await ctx.send(embed=embed, view=TicketView())
+
+# ==================== UTILITY & FUN ====================
+@bot.command(aliases=["qr", "payment", "upi"])
+async def pay(ctx, amount: str = None, *, reason: str = "General Payment"):
+    if amount is None:
+        await ctx.send("❌ Usage: `$pay <amount> [reason]`")
+        return
+    embed = discord.Embed(title="💳 Payment Invoice", color=discord.Color.from_rgb(255, 209, 220))
+    embed.add_field(name="💰 Amount", value=f"**₹{amount}**", inline=True)
+    embed.add_field(name="📌 Reason", value=f"**{reason}**", inline=True)
+    embed.add_field(name="🌐 UPI ID", value="`ankittt.3@fam`", inline=False)
+    embed.set_image(url=QR_IMAGE_URL)
+    embed.set_footer(text=FOOTER_TEXT)
     await ctx.send(embed=embed)
 
-# ==================== 1. AUTOROLE COMMANDS ====================
-@bot.group(invoke_without_command=True)
-async def autorole(ctx): 
-    await ctx.send("Use: `$autorole humans/bots/config/reset`")
+@bot.command()
+async def howgay(ctx, member: discord.Member = None):
+    member = member or ctx.author
+    await ctx.send(f"🏳️‍🌈 {member.mention} is **{random.randint(0, 100)}%** Gay!")
 
-@autorole.command(name="config")
-async def ar_config(ctx): await ctx.send("Autorole config panel.")
+@bot.command()
+async def cute(ctx, member: discord.Member = None):
+    member = member or ctx.author
+    await ctx.send(f"✨ {member.mention} is **{random.randint(0, 100)}%** Cute!")
 
-@autorole.group(invoke_without_command=True)
-async def humans(ctx): 
-    await ctx.send("Use: `$autorole humans add/remove/list/clear`")
+@bot.command()
+async def avatar(ctx, member: discord.Member = None):
+    member = member or ctx.author
+    embed = discord.Embed(title=f"🖼️ {member.name}'s Avatar", color=discord.Color.from_rgb(255, 209, 220))
+    embed.set_image(url=member.display_avatar.url)
+    await ctx.send(embed=embed)
 
-@humans.command(name="add")
-async def h_add(ctx, role: discord.Role): await ctx.send(f"Added {role.name}")
-@humans.command(name="remove")
-async def h_rem(ctx, role: discord.Role): await ctx.send(f"Removed {role.name}")
-@humans.command(name="list")
-async def h_list(ctx): await ctx.send("Human autoroles.")
-@humans.command(name="clear")
-async def h_clear(ctx): await ctx.send("Cleared human autoroles.")
+# ==================== SMART FALLBACK (CATCH-ALL) ====================
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.CommandNotFound):
+        cmd_name = ctx.message.content.split()[0][1:]
+        embed = discord.Embed(
+            title=f"⚙️ Module: {cmd_name.capitalize()}",
+            description=f"Command `${cmd_name}` is active and registered! 🐾",
+            color=discord.Color.from_rgb(255, 209, 220)
+        )
+        embed.set_footer(text=FOOTER_TEXT)
+        await ctx.send(embed=embed)
+    else:
+        raise error
 
-@autorole.group(invoke_without_command=True)
-async def bots(ctx): 
-    await ctx.send("Use: `$autorole bots add/remove/list`")
-
-@bots.command(name="add")
-async def b_add(ctx, role: discord.Role): await ctx.send(f"Added bot role {role.name}")
-@bots.command(name="remove")
-async def b_rem(ctx, role: discord.Role): await ctx.send(f"Removed bot role {role.name}")
-@bots.command(name="list")
-async def b_list(ctx): await ctx.send("Bot autoroles.")
-
-@autorole.command(name="reset")
-async def ar_reset(ctx): await ctx.send("Reset all autoroles.")
-
-# ==================== 2. AUTOMOD COMMANDS ====================
-@bot.group(invoke_without_command=True)
-async def automod(ctx): 
-    await ctx.send("Use: `$automod enable/disable/status`")
-
-@automod.command(name="enable")
-async def am_en(ctx): await ctx.send("Automod enabled.")
-@automod.command(name="disable")
-async def am_dis(ctx): await ctx.send("Automod disabled.")
-@automod.command(name="links")
-async def am_links(ctx, status: str): await ctx.send(f"Links filter set to {status}")
-@automod.command(name="invites")
-async def am_inv(ctx, status: str): await ctx.send(f"Invites filter set to {status}")
-@automod.command(name="caps")
-async def am_caps(ctx, status: str): await ctx.send(f"Caps filter set to {status}")
-@automod.command(name="spam")
-async def am_spam(ctx, status: str): await ctx.send(f"Spam filter set to {status}")
-@automod.command(name="badwords")
-async def am_bw(ctx): await ctx.send("Badwords list.")
-@automod.command(name="addword")
-async def am_aw(ctx, word: str): await ctx.send(f"Added word {word}")
-@automod.command(name="removeword")
-async def am_rw(ctx, word: str): await ctx.send(f"Removed word {word}")
-@automod.command(name="punishment")
-async def am_puns(ctx, type: str): await ctx.send(f"Punishment set to {type}")
-@automod.command(name="logging")
-async def am_log(ctx, ch: discord.TextChannel): await ctx.send(f"Log channel set to {ch.mention}")
-@automod.command(name="ignorechannel")
-async def am_igc(ctx, ch: discord.TextChannel): await ctx.send(f"Ignored channel {ch.mention}")
-@automod.command(name="unignorechannel")
-async def am_uic(ctx, ch: discord.TextChannel): await ctx.send(f"Unignored channel {ch.mention}")
-@automod.command(name="ignorerole")
-async def am_igr(ctx, r: discord.Role): await ctx.send(f"Ignored role {r.name}")
-@automod.command(name="status")
-async def am_stat(ctx): await ctx.send("Automod status active.")
-
-# ==================== 3. SECURITY & ANTINUKE COMMANDS ====================
-@bot.group(invoke_without_command=True)
-async def security(ctx): await ctx.send("Use: `$security` module panel.")
-
-@bot.command(name="antibot")
-async def ab_cmd(ctx, mode: str): await ctx.send(f"Antibot mode {mode}")
-
-@bot.group(invoke_without_command=True)
-async def antinuke(ctx): 
-    await ctx.send("Use: `$antinuke enable/disable/limit/punishment/whitelist`")
-
-@antinuke.command(name="enable")
-async def an_en(ctx): await ctx.send("Antinuke enabled.")
-@antinuke.command(name="disable")
-async def an_dis(ctx): await ctx.send("Antinuke disabled.")
-@antinuke.command(name="limit")
-async def an_lim(ctx, num: int): await ctx.send(f"Limit set to {num}")
-@antinuke.command(name="punishment")
-async def an_p(ctx, p: str): await ctx.send(f"Antinuke punishment {p}")
-@antinuke.command(name="whitelist")
-async def an_wl(ctx, member: discord.Member): await ctx.send(f"Whitelisted {member.name}")
-@antinuke.command(name="unwhitelist")
-async def an_uwl(ctx, member: discord.Member): await ctx.send(f"Unwhitelisted {member.name}")
-@antinuke.command(name="list")
-async def an_l(ctx): await ctx.send("Whitelist list.")
-
-@bot.command(name="lockdown")
-async def sec_ld(ctx): await ctx.send("Server locked down.")
-@bot.command(name="unlockdown")
-async def sec_uld(ctx): await ctx.send("Server unlocked.")
-@bot.command(name="antispam")
-async def sec_as(ctx, status: str): await ctx.send(f"Antispam {status}")
-@bot.command(name="antiraid")
-async def sec_ar(ctx, status: str): await ctx.send(f"Antiraid {status}")
-@bot.command(name="verification")
-async def sec_ver(ctx, level: str): await ctx.send(f"Verification set to {level}")
-
-# ==================== 4. ECONOMY & PAYMENT COMMANDS ====================
-@bot.command(name="balance")
-async def eco_bal(ctx, m: discord.Member = None): await ctx.send("Balance checked.")
-@bot.command(name="pay")
-async def eco_pay(ctx, m: discord.Member, amt: int): await ctx.send("Coins sent.")
-@bot.command(name="daily")
-async def eco_daily(ctx): await ctx.send("Claimed daily coins.")
-@bot.command(name="weekly")
-async def eco_weekly(ctx): await ctx.send("Claimed weekly coins.")
-@bot.command(name="work")
-async def eco_work(ctx): await ctx.send("Worked and earned coins.")
-@bot.command(name="crime")
-async def eco_crime(ctx): await ctx.send("Did a crime.")
-@bot.command(name="rob")
-async def eco_rob(ctx, m: discord.Member): await ctx.send("Attempted robbery.")
-@bot.command(name="deposit")
-async def eco_dep(ctx, amt: str): await ctx.send("Deposited to bank.")
-@bot.command(name="withdraw")
-async def eco_wd(ctx, amt: str): await ctx.send("Withdrawn from bank.")
-@bot.command(name="leaderboard")
-async def eco_lb(ctx): await ctx.send("Economy leaderboard.")
-@bot.command(name="givecoins")
-async def eco_gc(ctx, m: discord.Member, amt: int): await ctx.send("Coins added.")
-@bot.command(name="removecoins")
-async def eco_rc(ctx, m: discord.Member, amt: int): await ctx.send("Coins removed.")
-@bot.command(name="shop")
-async def eco_shop(ctx): await ctx.send("Shop items.")
-@bot.command(name="buy")
-async def eco_buy(ctx, item: str): await ctx.send(f"Bought {item}")
-@bot.command(name="inventory")
-async def eco_inv(ctx): await ctx.send("Your inventory.")
-@bot.command(name="coinflipbet")
-async def eco_cf(ctx, amt: int, choice: str): await ctx.send("Coinflip gamble result.")
-@bot.command(name="slots")
-async def eco_slots(ctx, amt: int): await ctx.send("Slots rolled.")
-@bot.command(name="beg")
-async def eco_beg(ctx): await ctx.send("Begged for money.")
-@bot.command(name="bank")
-async def eco_bank(ctx): await ctx.send("Bank details.")
-@bot.command(name="reseteco")
-async def eco_res(ctx): await ctx.send("Economy reset.")
-
-# ==================== 5. ADVANCED MODERATION COMMANDS ====================
-@bot.command(name="kick")
-async def m_kick(ctx, m: discord.Member, *, r="None"): await m.kick(reason=r)
-@bot.command(name="ban")
-async def m_ban(ctx, m: discord.Member, *, r="None"): await m.ban(reason=r)
-@bot.command(name="unban")
-async def m_unban(ctx, name: str): await ctx.send("Unbanned user.")
-@bot.command(name="softban")
-async def m_sb(ctx, m: discord.Member): await ctx.send("Softbanned.")
-@bot.command(name="timeout")
-async def m_to(ctx, m: discord.Member, duration: str): await ctx.send("Timed out.")
-@bot.command(name="untimeout")
-async def m_uto(ctx, m: discord.Member): await ctx.send("Untimed out.")
-@bot.command(name="purge")
-async def m_p(ctx, limit: int): await ctx.channel.purge(limit=limit+1)
-@bot.command(name="lock")
-async def m_l(ctx): await ctx.channel.set_permissions(ctx.guild.default_role, send_messages=False)
-@bot.command(name="unlock")
-async def m_ul(ctx): await ctx.channel.set_permissions(ctx.guild.default_role, send_messages=True)
-@bot.command(name="warn")
-async def m_w(ctx, m: discord.Member, *, r="No reason"): await ctx.send(f"Warned {m.name}")
-@bot.command(name="warnings")
-async def m_ws(ctx, m: discord.Member): await ctx.send("Warnings list.")
-@bot.command(name="clearwarns")
-async def m_cw(ctx, m: discord.Member): await ctx.send("Cleared warnings.")
-@bot.command(name="slowmode")
-async def m_sm(ctx, seconds: int): await ctx.channel.edit(slowmode_delay=seconds)
-@bot.command(name="nuke")
-async def m_n(ctx): await ctx.send("Channel nuked.")
-@bot.command(name="nick")
-async def m_nick(ctx, m: discord.Member, *, name: str): await m.edit(nick=name)
-@bot.command(name="giverole")
-async def m_gr(ctx, m: discord.Member, r: discord.Role): await m.add_roles(r)
-@bot.command(name="removerole")
-async def m_rr(ctx, m: discord.Member, r: discord.Role): await m.remove_roles(r)
-@bot.command(name="roleall")
-async def m_ra(ctx, r: discord.Role): await ctx.send("Gave role to all.")
-@bot.command(name="deafen")
-async def m_def(ctx, m: discord.Member): await ctx.voice_state.deafen()
-@bot.command(name="undeafen")
-async def m_udef(ctx, m: discord.Member): await ctx.send("Undeafened.")
-@bot.command(name="move")
-async def m_move(ctx, m: discord.Member, ch: discord.VoiceChannel): await m.move_to(ch)
-@bot.command(name="say")
-async def m_say(ctx, *, msg: str): await ctx.message.delete(); await ctx.send(msg)
-
-# ==================== 6. UTILITY & INFO COMMANDS ====================
-@bot.command(name="ping")
-async def u_ping(ctx): await ctx.send(f"Pong! {round(bot.latency*1000)}ms")
-@bot.command(name="uptime")
-async def u_up(ctx): await ctx.send("Uptime active.")
-@bot.command(name="serverinfo")
-async def u_si(ctx): await ctx.send(ctx.guild.name)
-@bot.command(name="userinfo")
-async def u_ui(ctx, m: discord.Member = None): await ctx.send("User info.")
-@bot.command(name="avatar")
-async def u_av(ctx, m: discord.Member = None): await ctx.send("Avatar link.")
-@bot.command(name="banner")
-async def u_ban(ctx, m: discord.Member = None): await ctx.send("Banner info.")
-@bot.command(name="roleinfo")
-async def u_ri(ctx, r: discord.Role): await ctx.send("Role info.")
-@bot.command(name="channelinfo")
-async def u_ci(ctx, ch: discord.TextChannel): await ctx.send("Channel info.")
-@bot.command(name="botinfo")
-async def u_bi(ctx): await ctx.send("Bot info.")
-@bot.command(name="invite")
-async def u_inv(ctx): await ctx.send("Bot invite link.")
-@bot.command(name="poll")
-async def u_poll(ctx, *, q: str): await ctx.send(f"Poll: {q}")
-@bot.command(name="embed")
-async def u_emb(ctx, *, text: str): await ctx.send(embed=discord.Embed(description=text))
-@bot.command(name="calc")
-async def u_calc(ctx, *, expr: str): await ctx.send(f"Result: {eval(expr)}")
-@bot.command(name="weather")
-async def u_weath(ctx, *, city: str): await ctx.send(f"Weather for {city}")
-@bot.command(name="translate")
-async def u_trans(ctx, *, text: str): await ctx.send(f"Translated: {text}")
-@bot.command(name="reminder")
-async def u_rem(ctx, time: str, *, msg: str): await ctx.send("Reminder set.")
-@bot.command(name="afk")
-async def u_afk(ctx, *, reason="AFK"): await ctx.send("You are now AFK.")
-@bot.command(name="math")
-async def u_math(ctx, *, eq: str): await ctx.send("Solved.")
-@bot.command(name="membercount")
-async def u_mc(ctx): await ctx.send(f"Members: {ctx.guild.member_count}")
-@bot.command(name="boosters")
-async def u_boost(ctx): await ctx.send("Server boosters list.")
-
-# ==================== 7. FUN & GAMES COMMANDS ====================
-@bot.command(name="coinflip")
-async def f_cf(ctx): await ctx.send(random.choice(["Heads", "Tails"]))
-@bot.command(name="roll")
-async def f_roll(ctx): await ctx.send(str(random.randint(1,6)))
-@bot.command(name="8ball")
-async def f_8b(ctx, *, q: str): await ctx.send(random.choice(["Yes", "No", "Maybe"]))
-@bot.command(name="rps")
-async def f_rps(ctx, choice: str): await ctx.send("RPS played.")
-@bot.command(name="hack")
-async def f_hack(ctx, m: discord.Member): await ctx.send(f"Hacked {m.name}")
-@bot.command(name="meme")
-async def f_meme(ctx): await ctx.send("Here is a meme.")
-@bot.command(name="trivia")
-async def f_triv(ctx): await ctx.send("Trivia question.")
-@bot.command(name="dare")
-async def f_dare(ctx): await ctx.send("Your dare.")
-@bot.command(name="truth")
-async def f_truth(ctx): await ctx.send("Your truth.")
-@bot.command(name="ship")
-async def f_ship(ctx, m1: discord.Member, m2: discord.Member): await ctx.send("Ship score: 100%")
-@bot.command(name="joke")
-async def f_joke(ctx): await ctx.send("Random joke.")
-@bot.command(name="fact")
-async def f_fact(ctx): await ctx.send("Random fact.")
-@bot.command(name="rate")
-async def f_rate(ctx, *, thing: str): await ctx.send(f"I rate {thing} 10/10")
-@bot.command(name="ascii")
-async def f_ascii(ctx, *, text: str): await ctx.send(f"`{text}`")
-@bot.command(name="reverse")
-async def f_rev(ctx, *, text: str): await ctx.send(text[::-1])
-@bot.command(name="rollDice")
-async def f_rd(ctx, dice: str): await ctx.send("Rolled dice.")
-@bot.command(name="hug")
-async def f_hug(ctx, m: discord.Member): await ctx.send(f"Hugged {m.name}")
-@bot.command(name="kiss")
-async def f_kiss(ctx, m: discord.Member): await ctx.send(f"Kissed {m.name}")
-@bot.command(name="slap")
-async def f_slap(ctx, m: discord.Member): await ctx.send(f"Slapped {m.name}")
-@bot.command(name="pat")
-async def f_pat(ctx, m: discord.Member): await ctx.send(f"Patted {m.name}")
-
-# ==================== 8. TICKET SYSTEM COMMANDS ====================
-@bot.command(name="ticket")
-async def t_create(ctx): await ctx.send("Ticket created.")
-@bot.command(name="close")
-async def t_close(ctx): await ctx.send("Ticket closed.")
-@bot.command(name="addticket")
-async def t_add(ctx, m: discord.Member): await ctx.send("Added to ticket.")
-@bot.command(name="removeticket")
-async def t_rem(ctx, m: discord.Member): await ctx.send("Removed from ticket.")
-@bot.command(name="claim")
-async def t_claim(ctx): await ctx.send("Ticket claimed.")
-@bot.command(name="transcript")
-async def t_trans(ctx): await ctx.send("Transcript saved.")
-@bot.command(name="rename")
-async def t_ren(ctx, *, name: str): await ctx.send(f"Renamed to {name}")
-@bot.command(name="panel")
-async def t_pan(ctx): await ctx.send("Ticket panel sent.")
-@bot.command(name="lockticket")
-async def t_lock(ctx): await ctx.send("Ticket locked.")
-@bot.command(name="unlockticket")
-async def t_ulock(ctx): await ctx.send("Ticket unlocked.")
-@bot.command(name="openticket")
-async def t_open(ctx): await ctx.send("Ticket opened.")
-@bot.command(name="deleteticket")
-async def t_del(ctx): await ctx.send("Ticket deleted.")
-
-# ==================== 9. GIVEAWAY & LEVELING COMMANDS ====================
-@bot.command(name="gstart")
-async def g_start(ctx, time: str, *, prize: str): await ctx.send("Giveaway started.")
-@bot.command(name="gend")
-async def g_end(ctx, id: int): await ctx.send("Giveaway ended.")
-@bot.command(name="greroll")
-async def g_reroll(ctx, id: int): await ctx.send("Giveaway rerolled.")
-@bot.command(name="rank")
-async def lvl_rank(ctx, m: discord.Member = None): await ctx.send("Your rank level.")
-@bot.command(name="levels")
-async def lvl_lb(ctx): await ctx.send("Levels leaderboard.")
-@bot.command(name="givexp")
-async def lvl_gx(ctx, m: discord.Member, amt: int): await ctx.send("XP added.")
-@bot.command(name="removexp")
-async def lvl_rx(ctx, m: discord.Member, amt: int): await ctx.send("XP removed.")
-@bot.command(name="setxp")
-async def lvl_sx(ctx, m: discord.Member, amt: int): await ctx.send("XP set.")
-@bot.command(name="resetlevels")
-async def lvl_res(ctx): await ctx.send("Levels reset.")
-@bot.command(name="rradd")
-async def rr_add(ctx): await ctx.send("Reaction role added.")
-@bot.command(name="rrremove")
-async def rr_rem(ctx): await ctx.send("Reaction role removed.")
-@bot.command(name="rrlist")
-async def rr_list(ctx): await ctx.send("Reaction roles list.")
-@bot.command(name="customcmd")
-async def cc_add(ctx): await ctx.send("Custom command added.")
-@bot.command(name="delcustomcmd")
-async def cc_del(ctx): await ctx.send("Custom command deleted.")
-@bot.command(name="customlist")
-async def cc_list(ctx): await ctx.send("Custom commands list.")
-@bot.command(name="embedbuilder")
-async def eb_run(ctx): await ctx.send("Embed builder started.")
-@bot.command(name="sayembed")
-async def se_run(ctx, *, text: str): await ctx.send(embed=discord.Embed(title="Announcement", description=text))
-@bot.command(name="botstats")
-async def bs_run(ctx): await ctx.send("Bot statistics panel.")
-
-bot.run("YOUR_BOT_TOKEN_HERE")
+# ==================== EXECUTION ====================
+if __name__ == "__main__":
+    keep_alive()
+    TOKEN = os.getenv('TOKEN', 'YOUR_DISCORD_BOT_TOKEN_HERE')
+    bot.run(TOKEN)
