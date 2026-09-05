@@ -1,5 +1,7 @@
  import os
 import random
+import urllib.parse
+from datetime import timedelta
 import discord
 from discord.ext import commands
 from discord.ui import Select, View, Button
@@ -24,10 +26,13 @@ def keep_alive():
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="$", intents=intents, help_command=None)
 
+# Global stores
+AFK_USERS = {}
+SNIPE_CACHE = {}
+
 # ==================== CONFIGURATION ====================
 FOOTER_TEXT = "Developer: ADX ANKIT | Pudding 🐾"
 SUPPORT_SERVER_LINK = "https://discord.gg/Yttbf69xx"
-QR_IMAGE_URL = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe"
 
 @bot.event
 async def on_ready():
@@ -36,12 +41,43 @@ async def on_ready():
     activity = discord.Activity(type=discord.ActivityType.streaming, name="🍮 Baking cute servers | $help 🐾", url="https://twitch.tv/discord")
     await bot.change_presence(status=discord.Status.online, activity=activity)
 
+@bot.event
+async def on_message(message):
+    if message.author.bot:
+        return
+
+    # Check for AFK status removal
+    if message.author.id in AFK_USERS:
+        reason = AFK_USERS.pop(message.author.id)
+        try:
+            await message.author.edit(nick=message.author.display_name.replace("[AFK] ", ""))
+        except:
+            pass
+        await message.channel.send(f"👋 Welcome back {message.author.mention}, I removed your AFK status!", delete_after=5)
+
+    # Check for AFK pings
+    for member in message.mentions:
+        if member.id in AFK_USERS:
+            await message.channel.send(f"💤 **{member.name}** is currently AFK: {AFK_USERS[member.id]}")
+
+    await bot.process_commands(message)
+
+@bot.event
+async def on_message_delete(message):
+    if message.author.bot:
+        return
+    SNIPE_CACHE[message.channel.id] = {
+        "content": message.content,
+        "author": message.author,
+        "time": message.created_at
+    }
+
 # ==================== HELP MENU SYSTEM ====================
 class HelpDropdown(Select):
     def __init__(self):
         options = [
             discord.SelectOption(label="Antinuke", emoji="🛡️", description="Antinuke & MainRole commands"),
-            discord.SelectOption(label="Moderation", emoji="⚒️", description="Moderation, Purge & Jail"),
+            discord.SelectOption(label="Moderation", emoji="⚒️", description="Moderation, Purge, Mute & Jail"),
             discord.SelectOption(label="Ticket", emoji="🎟️", description="Ticket system controls"),
             discord.SelectOption(label="Fun & Roleplay", emoji="⚛️", description="Fun & Roleplay commands"),
             discord.SelectOption(label="General", emoji="👻", description="General server utility"),
@@ -59,16 +95,16 @@ class HelpDropdown(Select):
             embed.add_field(name="Commands", value="`$antinuke`, `$whitelist`, `$unwhitelist`, `$whitelisted`, `$antinukelimit`", inline=False)
         elif val == "Moderation":
             embed.title = "⚒️ Moderation Module"
-            embed.add_field(name="Commands", value="`$ban`, `$unban`, `$kick`, `$mute`, `$unmute`, `$purge`, `$lock`, `$unlock`", inline=False)
+            embed.add_field(name="Commands", value="`$ban`, `$unban`, `$kick`, `$mute`, `$unmute`, `$purge`, `$lock`, `$unlock`, `$nuke`, `$role`, `$warn`, `$slowmode`", inline=False)
         elif val == "Ticket":
             embed.title = "🎟️ Ticket Module"
-            embed.add_field(name="Commands", value="`$ticket setup`, `$ticket panel`, `$ticket close`, `$ticket delete`", inline=False)
+            embed.add_field(name="Commands", value="`$ticket setup`, `$ticket close`, `$ticket delete`", inline=False)
         elif val == "Fun & Roleplay":
-            embed.title = "⚛️ Fun Module"
-            embed.add_field(name="Commands", value="`$howgay`, `$cute`, `$translate`, `$horny`, `$hug`, `$kiss`, `$slap`", inline=False)
+            embed.title = "⚛️ Fun & Roleplay Module"
+            embed.add_field(name="Commands", value="`$howgay`, `$cute`, `$8ball`, `$hug`, `$kiss`, `$slap`", inline=False)
         elif val == "General":
             embed.title = "👻 General Module"
-            embed.add_field(name="Commands", value="`$afk`, `$avatar`, `$banner`, `$servericon`, `$membercount`", inline=False)
+            embed.add_field(name="Commands", value="`$ping`, `$afk`, `$avatar`, `$servericon`, `$serverinfo`, `$userinfo`, `$membercount`, `$snipe`", inline=False)
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
@@ -90,7 +126,7 @@ async def help_cmd(ctx):
     embed.set_footer(text=FOOTER_TEXT, icon_url=bot.user.display_avatar.url)
     await ctx.send(embed=embed, view=HelpView())
 
-# ==================== MODERATION COMMANDS ====================
+# ==================== ADVANCED MODERATION COMMANDS ====================
 @bot.command()
 @commands.has_permissions(ban_members=True)
 async def ban(ctx, member: discord.Member, *, reason="No reason provided"):
@@ -98,10 +134,30 @@ async def ban(ctx, member: discord.Member, *, reason="No reason provided"):
     await ctx.send(f"🔨 Successfully banned {member.mention} | Reason: {reason}")
 
 @bot.command()
+@commands.has_permissions(ban_members=True)
+async def unban(ctx, user_id: int):
+    user = await bot.fetch_user(user_id)
+    await ctx.guild.unban(user)
+    await ctx.send(f"🔓 Successfully unbanned **{user.name}**")
+
+@bot.command()
 @commands.has_permissions(kick_members=True)
 async def kick(ctx, member: discord.Member, *, reason="No reason provided"):
     await member.kick(reason=reason)
     await ctx.send(f"👢 Successfully kicked {member.mention} | Reason: {reason}")
+
+@bot.command()
+@commands.has_permissions(moderate_members=True)
+async def mute(ctx, member: discord.Member, minutes: int = 10, *, reason="No reason provided"):
+    duration = timedelta(minutes=minutes)
+    await member.timeout(duration, reason=reason)
+    await ctx.send(f"🤫 Timed out {member.mention} for **{minutes} minutes** | Reason: {reason}")
+
+@bot.command()
+@commands.has_permissions(moderate_members=True)
+async def unmute(ctx, member: discord.Member):
+    await member.timeout(None)
+    await ctx.send(f"🔊 Removed timeout for {member.mention}!")
 
 @bot.command()
 @commands.has_permissions(manage_messages=True)
@@ -121,6 +177,110 @@ async def lock(ctx):
 async def unlock(ctx):
     await ctx.channel.set_permissions(ctx.guild.default_role, send_messages=True)
     await ctx.send("🔓 Channel unlocked successfully!")
+
+@bot.command()
+@commands.has_permissions(manage_channels=True)
+async def slowmode(ctx, seconds: int = 0):
+    await ctx.channel.edit(slowmode_delay=seconds)
+    if seconds == 0:
+        await ctx.send("⏱️ Slowmode has been disabled!")
+    else:
+        await ctx.send(f"⏱️ Slowmode set to {seconds} seconds!")
+
+@bot.command()
+@commands.has_permissions(manage_channels=True)
+async def nuke(ctx):
+    channel = ctx.channel
+    pos = channel.position
+    new_channel = await channel.clone(reason="Channel Nuked")
+    await new_channel.edit(position=pos)
+    await channel.delete()
+    await new_channel.send("💥 Channel nuked and recreated successfully!", delete_after=10)
+
+@bot.command()
+@commands.has_permissions(manage_roles=True)
+async def role(ctx, member: discord.Member, role: discord.Role):
+    if role in member.roles:
+        await member.remove_roles(role)
+        await ctx.send(f"❌ Removed **{role.name}** from {member.mention}")
+    else:
+        await member.add_roles(role)
+        await ctx.send(f"✅ Added **{role.name}** to {member.mention}")
+
+@bot.command()
+@commands.has_permissions(kick_members=True)
+async def warn(ctx, member: discord.Member, *, reason="No reason provided"):
+    embed = discord.Embed(title="⚠️ Warning Issued", description=f"**User:** {member.mention}\n**Moderator:** {ctx.author.mention}\n**Reason:** {reason}", color=discord.Color.orange())
+    await ctx.send(embed=embed)
+    try:
+        await member.send(f"You have been warned in **{ctx.guild.name}** for: {reason}")
+    except:
+        pass
+
+# ==================== UTILITY & GENERAL COMMANDS ====================
+@bot.command()
+async def ping(ctx):
+    latency = round(bot.latency * 1000)
+    await ctx.send(f"🏓 Pong! Latency: **{latency}ms**")
+
+@bot.command()
+async def afk(ctx, *, reason="AFK"):
+    AFK_USERS[ctx.author.id] = reason
+    try:
+        await ctx.author.edit(nick=f"[AFK] {ctx.author.display_name}")
+    except:
+        pass
+    await ctx.send(f"💤 {ctx.author.mention} is now AFK: **{reason}**")
+
+@bot.command()
+async def snipe(ctx):
+    if ctx.channel.id not in SNIPE_CACHE:
+        await ctx.send("❌ There are no deleted messages to snipe in this channel!")
+        return
+    data = SNIPE_CACHE[ctx.channel.id]
+    embed = discord.Embed(title="🎯 Snipe Recovery", description=data["content"], color=discord.Color.from_rgb(255, 209, 220))
+    embed.set_author(name=str(data["author"]), icon_url=data["author"].display_avatar.url)
+    embed.set_footer(text=f"Deleted at • {FOOTER_TEXT}")
+    await ctx.send(embed=embed)
+
+@bot.command()
+async def membercount(ctx):
+    await ctx.send(f"👥 Total members in **{ctx.guild.name}**: **{ctx.guild.member_count}**")
+
+@bot.command()
+async def serverinfo(ctx):
+    guild = ctx.guild
+    embed = discord.Embed(title=f"🏰 {guild.name} Server Info", color=discord.Color.from_rgb(255, 209, 220))
+    if guild.icon:
+        embed.set_thumbnail(url=guild.icon.url)
+    embed.add_field(name="👑 Owner", value=f"{guild.owner.mention}", inline=True)
+    embed.add_field(name="👥 Members", value=f"**{guild.member_count}**", inline=True)
+    embed.add_field(name="💬 Channels", value=f"**{len(guild.channels)}**", inline=True)
+    embed.add_field(name="🎭 Roles", value=f"**{len(guild.roles)}**", inline=True)
+    embed.add_field(name="🆔 Server ID", value=f"`{guild.id}`", inline=False)
+    embed.set_footer(text=FOOTER_TEXT)
+    await ctx.send(embed=embed)
+
+@bot.command()
+async def userinfo(ctx, member: discord.Member = None):
+    member = member or ctx.author
+    embed = discord.Embed(title=f"👤 {member.name}'s Profile", color=discord.Color.from_rgb(255, 209, 220))
+    embed.set_thumbnail(url=member.display_avatar.url)
+    embed.add_field(name="🏷️ Tag", value=f"{member.mention}", inline=True)
+    embed.add_field(name="🆔 User ID", value=f"`{member.id}`", inline=True)
+    embed.add_field(name="⭐ Top Role", value=f"{member.top_role.mention}", inline=False)
+    embed.add_field(name="📅 Joined Server", value=f"{member.joined_at.strftime('%d %b %Y')}", inline=True)
+    embed.set_footer(text=FOOTER_TEXT)
+    await ctx.send(embed=embed)
+
+@bot.command()
+async def servericon(ctx):
+    if not ctx.guild.icon:
+        await ctx.send("❌ This server doesn't have an icon!")
+        return
+    embed = discord.Embed(title=f"🖼️ {ctx.guild.name} Icon", color=discord.Color.from_rgb(255, 209, 220))
+    embed.set_image(url=ctx.guild.icon.url)
+    await ctx.send(embed=embed)
 
 # ==================== TICKET SYSTEM ====================
 class TicketView(View):
@@ -164,20 +324,39 @@ async def ticket_setup(ctx):
     embed = discord.Embed(title="Support Center", description="Click the button below to open a support ticket.", color=discord.Color.from_rgb(255, 209, 220))
     await ctx.send(embed=embed, view=TicketView())
 
-# ==================== UTILITY & FUN ====================
+# ==================== DYNAMIC UPI PAYMENT / QR ====================
 @bot.command(aliases=["qr", "payment", "upi"])
 async def pay(ctx, amount: str = None, *, reason: str = "General Payment"):
     if amount is None:
-        await ctx.send("❌ Usage: `$pay <amount> [reason]`")
+        await ctx.send("❌ Usage: `$pay <amount> [reason]`\n**Example:** `$pay 100 Subscription`")
         return
-    embed = discord.Embed(title="💳 Payment Invoice", color=discord.Color.from_rgb(255, 209, 220))
+
+    upi_id = "ankittt.3@fam"
+    name = "Ankit"
+    encoded_reason = urllib.parse.quote(reason)
+    
+    upi_url = f"upi://pay?pa={upi_id}&pn={urllib.parse.quote(name)}&am={amount}&cu=INR&tn={encoded_reason}"
+    qr_api_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={urllib.parse.quote(upi_url)}"
+
+    embed = discord.Embed(
+        title="💳 Dynamic UPI Payment",
+        description=f"Payment request generated for {ctx.author.mention}",
+        color=discord.Color.from_rgb(255, 209, 220)
+    )
+    
     embed.add_field(name="💰 Amount", value=f"**₹{amount}**", inline=True)
     embed.add_field(name="📌 Reason", value=f"**{reason}**", inline=True)
-    embed.add_field(name="🌐 UPI ID", value="`ankittt.3@fam`", inline=False)
-    embed.set_image(url=QR_IMAGE_URL)
-    embed.set_footer(text=FOOTER_TEXT)
-    await ctx.send(embed=embed)
+    embed.add_field(name="🌐 UPI ID", value=f"`{upi_id}`", inline=False)
+    
+    embed.set_image(url=qr_api_url)
+    embed.set_footer(text=FOOTER_TEXT, icon_url=bot.user.display_avatar.url)
+    
+    view = View()
+    view.add_item(Button(label="Pay Now (UPI)", emoji="📲", url=upi_url))
+    
+    await ctx.send(embed=embed, view=view)
 
+# ==================== FUN & ROLEPLAY COMMANDS ====================
 @bot.command()
 async def howgay(ctx, member: discord.Member = None):
     member = member or ctx.author
@@ -187,6 +366,23 @@ async def howgay(ctx, member: discord.Member = None):
 async def cute(ctx, member: discord.Member = None):
     member = member or ctx.author
     await ctx.send(f"✨ {member.mention} is **{random.randint(0, 100)}%** Cute!")
+
+@bot.command(name="8ball")
+async def eightball(ctx, *, question: str):
+    responses = ["Yes, absolutely! ✨", "No way. ❌", "Most likely! 👍", "Ask again later. 🔮", "Definitely not. 🙅‍♂️"]
+    await ctx.send(f"🎱 **Question:** {question}\n✨ **Answer:** {random.choice(responses)}")
+
+@bot.command()
+async def hug(ctx, member: discord.Member):
+    await ctx.send(f"🤗 {ctx.author.mention} gave a warm hug to {member.mention}! 💖")
+
+@bot.command()
+async def kiss(ctx, member: discord.Member):
+    await ctx.send(f"💋 {ctx.author.mention} kissed {member.mention}! 😘")
+
+@bot.command()
+async def slap(ctx, member: discord.Member):
+    await ctx.send(f"🤚 {ctx.author.mention} slapped {member.mention}! 💥")
 
 @bot.command()
 async def avatar(ctx, member: discord.Member = None):
@@ -215,3 +411,4 @@ if __name__ == "__main__":
     keep_alive()
     TOKEN = os.getenv('TOKEN', 'YOUR_DISCORD_BOT_TOKEN_HERE')
     bot.run(TOKEN)
+     
