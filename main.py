@@ -119,7 +119,7 @@ async def help_cmd(ctx):
     embed.add_field(name="Categories", value="🛡️ Antinuke\n✨ Welcome\n⚒️ Moderation\n🎵 Music\n🎟️ Tickets\n🎮 Fun & Games\n💰 Economy & Utility", inline=False)
     embed.set_footer(text=FOOTER_TEXT, icon_url=bot.user.display_avatar.url)
     await ctx.send(embed=embed, view=HelpView())
-    @bot.command()
+ @bot.command()
 @commands.has_permissions(administrator=True)
 async def antinuke(ctx, status: str = None):
     if not status:
@@ -249,7 +249,7 @@ async def role(ctx, member: discord.Member, role: discord.Role):
 async def warn(ctx, member: discord.Member, *, reason="No reason provided"):
     embed = discord.Embed(title="⚠️ Warning Issued", description=f"**User:** {member.mention}\n**Reason:** {reason}", color=discord.Color.orange())
     await ctx.send(embed=embed)
- @bot.command()
+               @bot.command()
 async def play(ctx, *, query: str = "Lofi Hip Hop Radio"):
     if not ctx.author.voice:
         await ctx.send("❌ Please join a Voice Channel first!")
@@ -359,7 +359,7 @@ async def poll(ctx, *, question: str):
 async def say(ctx, *, message: str):
     await ctx.message.delete()
     await ctx.send(message)
- @bot.command()
+     @bot.command()
 @commands.has_permissions(manage_guild=True)
 async def gstart(ctx, minutes: int, *, prize: str):
     await ctx.message.delete()
@@ -490,4 +490,3 @@ async def on_command_error(ctx, error):
 if __name__ == "__main__":
     keep_alive()
     bot.run(os.getenv('TOKEN', 'YOUR_DISCORD_BOT_TOKEN_HERE'))
- 
